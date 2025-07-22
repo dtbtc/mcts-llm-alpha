@@ -1,0 +1,82 @@
+# MCTS-LLM Alpha挖掘配置
+
+# MCTS搜索参数
+mcts:
+  max_iterations: 20           # 初始预算B
+  budget_increment: 1         # 预算增量b
+  exploration_constant: 1.0    # UCT探索常数c
+  max_depth: 5                # 最大树深度
+  max_nodes: 100              # 最大节点数
+  checkpoint_freq: 10         # 检查点保存频率
+  dimension_temperature: 1.0   # 维度选择温度T
+  early_stop_rounds: 50       # 早停轮数
+  effectiveness_threshold: 3.0 # 有效性阈值τ（0-10范围，需超过3.0分的现有alpha）
+  initial_seed_formula: null  # 初始种子公式f_seed
+  dimension_max_scores:       # 各维度最大分数e_max（0-10评分范围）
+    Effectiveness: 10.0
+    Stability: 10.0
+    Turnover: 10.0
+    Diversity: 10.0
+    Overfitting: 10.0
+
+# LLM配置
+llm:
+  model: "gpt-4o-mini"        # 模型名称
+  temperature:
+    initial: 1.0              # 初始生成温度
+    refinement: 0.9           # 优化温度
+    formula_generation: 0.7   # 公式生成温度
+  max_retries: 3             # 最大重试次数
+  retry_delay: 1.0           # 重试延迟（秒）
+
+# 公式评估
+evaluation:
+  effectiveness_threshold: 3.0  # 有效性阈值 (τ)，0-10范围
+  diversity_threshold: 2.0      # 多样性阈值，0-10范围
+  overall_threshold: 5.0        # 整体阈值，0-10范围
+  repository_size: 20          # 仓库大小
+  split_date: "2022-01-01"     # IS/OOS分割日期
+  ic_method: "spearman"        # IC计算方法 ("pearson" 或 "spearman")
+  min_stocks: 10               # 评估最少股票数量
+  min_days: 50                 # 评估最少天数
+
+# 数据配置
+data:
+  start_date: "2020-01-01"     # 开始日期
+  end_date: "2023-12-31"       # 结束日期
+  universe: "csi300"           # 股票池
+  test_instruments:            # 测试用股票
+    - "SH600000"
+    - "SH600016"
+    - "SH600036"
+
+# 模式挖掘
+fsa:
+  min_support: 3              # 最小支持度
+  max_avoid_patterns: 5       # 最大规避模式数
+
+# 公式约束
+formula:
+  max_parameters: 3           # 最大参数数
+  min_operators: 2            # 最小操作符数
+  window_range:               # 窗口范围
+    min: 3
+    max: 60
+  default_windows:            # 默认窗口大小
+    Std: 20
+    Mean: 20
+    Sum: 20
+    Min: 20
+    Max: 20
+    Med: 20
+    Mad: 20
+    Skew: 20
+    Kurt: 20
+    Rank: 5
+    Corr: 20
+
+# 输出配置
+output:
+  results_file: "mcts_results.csv"     # 结果文件
+  checkpoint_dir: "checkpoints"        # 检查点目录
+  log_level: "INFO"                   # 日志级别

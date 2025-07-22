@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Cache
+.cache/
+cache/
+*_cache/
+tempfile*/
+
+# Data
+*.csv
+*.pkl
+*.pickle
+qlib_data/
+qlib_bin/
+data/
+
+# Checkpoints
+checkpoints/
+mcts_checkpoint_*.pkl
+
+# Results
+results/
+mcts_results.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Model outputs
+output/
+outputs/
+
+# API keys (safety)
+*api_key*
+*API_KEY*
