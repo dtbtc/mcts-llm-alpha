@@ -1,0 +1,38 @@
+name: Lint and Format
+
+on:
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black isort ruff mypy
+    
+    - name: Format code with black
+      run: |
+        black --diff --check mcts-llm-alpha/src mcts-llm-alpha/tests
+    
+    - name: Sort imports with isort
+      run: |
+        isort --diff --check-only mcts-llm-alpha/src mcts-llm-alpha/tests
+    
+    - name: Lint with ruff
+      run: |
+        ruff check mcts-llm-alpha/src mcts-llm-alpha/tests
+    
+    - name: Type check with mypy
+      run: |
+        mypy mcts-llm-alpha/src --ignore-missing-imports || true

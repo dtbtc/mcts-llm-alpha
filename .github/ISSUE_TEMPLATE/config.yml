@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/dtbtc/mcts-llm-alpha/wiki
+    about: Please check the wiki for documentation and guides
+  - name: Discussions
+    url: https://github.com/dtbtc/mcts-llm-alpha/discussions
+    about: For general discussions and ideas
+  - name: Paper Reference
+    url: https://github.com/dtbtc/mcts-llm-alpha/blob/master/Artical/MTCS_LLM_Alpha.md
+    about: Read the original paper methodology
