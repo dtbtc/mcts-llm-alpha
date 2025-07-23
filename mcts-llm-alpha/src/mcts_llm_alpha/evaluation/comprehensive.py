@@ -44,7 +44,7 @@ class ComprehensiveEvaluator:
         formula: str,
         repo_factors: List[pd.DataFrame],
         node: Optional[Any] = None
-    ) -> Tuple[Optional[Dict[str, float]], Optional[pd.DataFrame]]:
+    ) -> Tuple[Optional[Dict[str, float]], Optional[pd.DataFrame], Optional[Dict[str, float]]]:
         """
         综合公式评估。
         
@@ -115,6 +115,8 @@ class ComprehensiveEvaluator:
             
         except Exception as e:
             logger.error(f"评估公式 {formula} 时出错: {e}")
+            import traceback
+            traceback.print_exc()
             return None, None, None
             
     def _evaluate_with_qlib(
@@ -153,6 +155,8 @@ class ComprehensiveEvaluator:
         try:
             from qlib.data import D
             
+            print(f"[评估] 尝试获取 {self.config.data.universe} 股票池...")
+            
             # 正确的方式：先获取instruments字典，再传给list_instruments
             instruments_dict = D.instruments(market=self.config.data.universe)
             
@@ -167,14 +171,20 @@ class ComprehensiveEvaluator:
             if not stock_list:
                 raise ValueError(f"股票池 {self.config.data.universe} 为空")
                 
+            print(f"[评估] ✅ 成功获取 {self.config.data.universe} 股票池，包含 {len(stock_list)} 只股票")
             logger.info(f"成功获取 {self.config.data.universe} 股票池，包含 {len(stock_list)} 只股票")
+            
+            # 显示前5只股票作为示例
+            print(f"[评估] 股票池示例（前5只）: {stock_list[:5]}")
+            
             return stock_list
             
         except Exception as e:
             logger.error(f"获取股票池失败: {e}")
-            # 如果获取失败，返回测试用股票
-            logger.warning(f"使用测试股票池: {self.config.data.test_instruments}")
-            return self.config.data.test_instruments
+            print(f"[评估] ❌ 获取 {self.config.data.universe} 股票池失败: {e}")
+            
+            # 不再退回到测试股票，而是报错
+            raise RuntimeError(f"无法获取 {self.config.data.universe} 股票池，请检查Qlib数据是否正确安装。错误: {e}")
 
 
 def create_evaluator(config: Config, llm_client=None):

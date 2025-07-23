@@ -20,15 +20,17 @@ class RelativeRankingEvaluator:
     R_f^IC = (1/N)∑I(IC(f) < IC(f_i))
     """
     
-    def __init__(self, effectiveness_threshold: float = 3.0):
+    def __init__(self, effectiveness_threshold: float = 3.0, min_repository_size: int = 5):
         """
         初始化相对排名评估器。
         
         参数：
             effectiveness_threshold: 有效alpha的最小有效性分数（0-10范围）
+            min_repository_size: 开始使用相对排名的最小仓库大小
         """
         self.effectiveness_threshold = effectiveness_threshold
-        self.repository_metrics: List[Dict[str, float]] = []  # 所有评估过的alpha（用于调试）
+        self.min_repository_size = min_repository_size
+        self.repository_metrics: List[Dict[str, float]] = []  # 所有评佰过的alpha（用于调试）
         self.effective_repository: List[Dict[str, float]] = []  # 只包含有效的alpha（用于相对排名）
         
     def add_to_repository(self, metrics: Dict[str, float]) -> None:
@@ -58,34 +60,86 @@ class RelativeRankingEvaluator:
         """
         计算指标值的相对排名。
         
-        根据论文要求，相对排名应该基于有效alpha仓库，
-        这样随着仓库质量的提升，新alpha的标准会自然提高。
+        根据论文公式：R_f^IC = (1/N)∑I(IC(f) < IC(f_i))
+        计算有多少比例的alpha比当前alpha更差。
         
         参数：
             value: 要排名的指标值
             metric_name: 指标名称（例如，'IC', 'IR'）
             
         返回：
-            [0, 1]范围内的相对排名，其中0是最好的
+            [0, 1]范围内的相对排名，其中0表示最差，1表示最好
         """
-        # 使用有效仓库进行相对排名
-        if not self.effective_repository:
-            # 如果有效仓库为空，使用宽松的默认值鼓励早期探索
-            # 对于Diversity，初始因子应该获得高分（因为没有其他因子可以相关）
-            if metric_name == 'Diversity':
-                return 0.0  # 最好的排名，因为是第一个因子
-            return 0.3  # 给予较好的初始排名
+        # 当有效仓库太小时，使用绝对评分
+        if len(self.effective_repository) < self.min_repository_size:
+            # 冷启动阶段：使用绝对评分标准
+            return self._get_absolute_score(value, metric_name)
             
-        # 从有效仓库中提取该指标的值
+        # 使用相对排名（符合论文公式）
         repo_values = [m.get(metric_name, 0) for m in self.effective_repository]
         
-        # 统计有多少仓库值更好（更大）
-        better_count = sum(1 for v in repo_values if v > value)
+        if metric_name == 'Turnover':
+            # Turnover越大越差，计算比当前值更差（更大）的比例
+            worse_count = sum(1 for v in repo_values if v > value)
+        else:
+            # IC/IR/Diversity越小越差，计算比当前值更差（更小）的比例
+            worse_count = sum(1 for v in repo_values if v < value)
         
-        # 计算相对排名
-        relative_rank = better_count / len(repo_values)
+        # 返回“比当前alpha更差的比例”
+        # 值越高表示当前alpha越好
+        return worse_count / len(repo_values)
+    
+    def _get_absolute_score(self, value: float, metric_name: str) -> float:
+        """
+        冷启动阶段的绝对评分方法。
         
-        return relative_rank
+        返回[0, 1]范围内的分数，其中0表示最差，1表示最好。
+        """
+        if metric_name == 'IC':
+            # IC通常在[-0.1, 0.1]之间
+            if value >= 0.05:
+                return 0.9  # 优秀
+            elif value >= 0.03:
+                return 0.7  # 良好
+            elif value >= 0.01:
+                return 0.5  # 中等
+            elif value >= 0:
+                return 0.3  # 一般
+            else:
+                return 0.1  # 较差
+                
+        elif metric_name == 'IR':
+            # IR（ICIR）通常在[-2, 2]之间
+            if value >= 1.0:
+                return 0.9  # 优秀
+            elif value >= 0.5:
+                return 0.7  # 良好
+            elif value >= 0.2:
+                return 0.5  # 中等
+            elif value >= 0:
+                return 0.3  # 一般
+            else:
+                return 0.1  # 较差
+                
+        elif metric_name == 'Turnover':
+            # Turnover：值越低越好
+            if value <= 0.2:
+                return 0.9  # 优秀
+            elif value <= 0.4:
+                return 0.7  # 良好
+            elif value <= 0.6:
+                return 0.5  # 中等
+            elif value <= 0.8:
+                return 0.3  # 一般
+            else:
+                return 0.1  # 较差
+                
+        elif metric_name == 'Diversity':
+            # 早期阶段，多样性通常很高
+            return max(0.8, value)  # 至少0.8
+            
+        else:
+            return 0.5  # 默认中间值
     
     def evaluate_formula_with_relative_ranking(
         self, 
@@ -107,22 +161,27 @@ class RelativeRankingEvaluator:
         # 有效性：基于IC相对排名
         if 'IC' in raw_metrics:
             rank_ic = self.calculate_relative_rank(raw_metrics['IC'], 'IC')
-            scores['Effectiveness'] = (1 - rank_ic) * 10  # 转换到0-10范围
+            # rank_ic现在表示“比当前IC更差的比例”，值越高表示当前alpha越好
+            scores['Effectiveness'] = rank_ic * 10  # 直接使用rank，转换到0-10范围
         
         # 稳定性：基于IR相对排名  
         if 'IR' in raw_metrics:
             rank_ir = self.calculate_relative_rank(raw_metrics['IR'], 'IR')
-            scores['Stability'] = (1 - rank_ir) * 10  # 转换到0-10范围
+            # rank_ir现在表示“比当前IR更差的比例”，值越高表示当前alpha越好
+            scores['Stability'] = rank_ir * 10  # 直接使用rank，转换到0-10范围
             
-        # 换手率：越低越好，所以反转排名
+        # 换手率：越低越好
         if 'Turnover' in raw_metrics:
             rank_turnover = self.calculate_relative_rank(raw_metrics['Turnover'], 'Turnover')
-            scores['Turnover'] = rank_turnover * 10  # 更低的换手率获得更高的分数，转换到0-10范围
+            # 注意：rank_turnover现在表示“比当前值更差（更高）的比例”
+            # 由于Turnover越低越好，所以rank值越高表示当前alpha越好
+            scores['Turnover'] = rank_turnover * 10  # 直接使用rank，不需要(1-rank)
             
         # 多样性：基于多样性分数（越高越好）
         if 'Diversity' in raw_metrics:
             rank_diversity = self.calculate_relative_rank(raw_metrics['Diversity'], 'Diversity')
-            scores['Diversity'] = (1 - rank_diversity) * 10  # 更高的多样性获得更高的分数，转换到0-10范围
+            # rank_diversity现在表示“比当前Diversity更差的比例”，值越高表示当前alpha越好
+            scores['Diversity'] = rank_diversity * 10  # 直接使用rank，转换到0-10范围
         else:
             # 如果没有Diversity分数，给予默认分数
             scores['Diversity'] = 5.0  # 默认中间值

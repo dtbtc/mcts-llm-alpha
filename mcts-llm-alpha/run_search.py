@@ -112,7 +112,7 @@ def main():
     
     # ========== 运行模式配置 ==========
     # 命令行参数优先级高于默认值
-    MAX_ITERATIONS = args.iterations or 50  # MCTS搜索迭代次数（默认50次）
+    MAX_ITERATIONS = args.iterations or 5  # MCTS搜索迭代次数（默认50次）
     SEED_FORMULA = args.seed_formula       # 种子公式
     # ===================================
     

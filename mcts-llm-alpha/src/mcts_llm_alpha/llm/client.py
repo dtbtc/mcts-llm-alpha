@@ -517,9 +517,9 @@ class LLMClient:
                     try:
                         from ..utils.formula_diff import highlight_differences
                         old_high, new_high, stats = highlight_differences(symbolic_formula, formula_info['formula'])
-                        print(f"\n  🔍 公式变化详情:")
-                        print(f"     原: {old_high}")
-                        print(f"     新: {new_high}")
+                        print(f"\n  🔍 公式变化:")
+                        print(f"     原公式: {symbolic_formula}")
+                        print(f"     新公式: {formula_info['formula']}")
                         print(f"     结构变化率: {stats['structure_change_ratio']*100:.1f}%")
                         if stats['structure_change_ratio'] > 0.1:
                             print(f"  ✓ 公式结构发生实质性变化")

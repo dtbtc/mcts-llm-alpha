@@ -88,6 +88,7 @@ def evaluate_formula_qlib(
     if use_cache:
         cached_result = _global_cache.get(formula, start_date, end_date, universe)
         if cached_result is not None:
+            print(f"[缓存命中] 公式: {formula[:50]}...")
             return cached_result
     
     try:
@@ -113,7 +114,7 @@ def evaluate_formula_qlib(
         # 正确的未来收益率计算：(明天收盘价 - 今天收盘价) / 今天收盘价
         ret_df = D.features(
             universe,
-            ["$close / Ref($close, 1) - 1"],
+            ["Ref($close, -1) / $close - 1"],
             start_time=start_date,
             end_time=end_date,
             freq="day"
@@ -150,19 +151,8 @@ def evaluate_formula_qlib(
             "Overfitting": overfitting
         }
         
-        # 同时创建用于显示的归一化分数
-        scores = {
-            "Effectiveness": effectiveness,
-            "Stability": stability,
-            "Turnover": turnover,
-            "Diversity": diversity,
-            "Overfitting": overfitting
-        }
-        normalized_scores = normalize_scores(scores)
-        
         # 调试打印
         print(f"原始分数: IC={raw_scores['IC']:.4f}, ICIR={raw_scores['IR']:.4f}")
-        print(f"映射后分数: IC={normalized_scores['Effectiveness']:.2f}, ICIR={normalized_scores['Stability']:.2f}")
         print(f"评估完成: IC={raw_scores['IC']:.4f}, ICIR={raw_scores['IR']:.4f}, " +
               f"Turnover={raw_scores['Turnover']:.4f}, Diversity={raw_scores['Diversity']:.4f}, " +
               f"Overfitting={raw_scores['Overfitting']:.4f}")

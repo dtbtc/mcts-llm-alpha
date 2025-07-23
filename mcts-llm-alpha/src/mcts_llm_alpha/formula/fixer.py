@@ -574,4 +574,62 @@ def fix_missing_params(expr):
     
     expr = fix_sum_params(expr)
     
+    # 修复未定义的参数名
+    expr = expr.replace('small_window', '5')  # 默认小窗口为5
+    expr = expr.replace('medium_window', '10')  # 默认中窗口为10
+    expr = expr.replace('large_window', '20')  # 默认大窗口为20
+    
+    # 修复括号错误导致的参数缺失
+    # 例如: Rank(($close - Ref($close, 20)) / Ref($close, 20) * ..., 10)
+    # 应该是: Rank((($close - Ref($close, 20)) / Ref($close, 20)) * ..., 10)
+    def fix_missing_parentheses(expr):
+        """修复因括号缺失导致的语法错误"""
+        # 修复形如 "/ Ref($close, n) *" 的模式，添加括号
+        expr = re.sub(r'(\$\w+\s*-\s*Ref\([^)]+\))\s*/\s*(Ref\([^)]+\))\s*\*', r'(\1 / \2) *', expr)
+        
+        # 修复 Ref(Mean(...), N) 中Mean缺少参数的情况
+        # 查找形如 Ref(Mean(Rank(...), N), M) 的模式
+        def fix_ref_mean_pattern(match):
+            full_expr = match.group(0)
+            # 解析Ref的内容
+            ref_content = match.group(1)
+            ref_n = match.group(2)
+            
+            # 检查是否是Mean(Rank(...), N)的模式
+            if ref_content.startswith('Mean(') and 'Rank(' in ref_content:
+                # 找到Mean的参数
+                mean_match = re.search(r'Mean\((.+)\)', ref_content)
+                if mean_match:
+                    mean_content = mean_match.group(1)
+                    # 检查是否有逗号
+                    depth = 0
+                    last_comma = -1
+                    for i, c in enumerate(mean_content):
+                        if c == '(':
+                            depth += 1
+                        elif c == ')':
+                            depth -= 1
+                        elif c == ',' and depth == 0:
+                            last_comma = i
+                    
+                    if last_comma == -1:
+                        # Mean缺少窗口参数，添加默认值
+                        return f"Ref(Mean({mean_content}, 5), {ref_n})"
+            
+            return full_expr
+        
+        expr = re.sub(r'Ref\((Mean\([^)]+\)),\s*(\d+)\)', fix_ref_mean_pattern, expr)
+        
+        return expr
+    
+    expr = fix_missing_parentheses(expr)
+    
+    # 最后一次括号检查
+    open_count = expr.count('(')
+    close_count = expr.count(')')
+    if open_count > close_count:
+        expr += ')' * (open_count - close_count)
+        print(f"警告: 公式括号不匹配")
+        print(f"自动修复: 在末尾添加了{open_count - close_count}个右括号")
+    
     return expr
