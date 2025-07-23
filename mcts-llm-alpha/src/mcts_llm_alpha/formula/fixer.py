@@ -148,18 +148,42 @@ def fix_missing_params(expr):
                             
                             # 检查参数数量
                             if len(args) == 2:
-                                # 两个参数，使用数学公式，完全替换Max/Min函数
-                                a, b = args[0], args[1]
-                                if is_max:
-                                    replacement = f"(({a} + {b} + Abs({a} - {b})) / 2)"
+                                # 检查第二个参数是否是纯数字（窗口参数）
+                                second_arg = args[1].strip()
+                                is_window_param = False
+                                try:
+                                    # 尝试将第二个参数转换为整数
+                                    int(second_arg)
+                                    is_window_param = True
+                                except:
+                                    # 不是数字，可能是另一个表达式
+                                    pass
+                                
+                                if not is_window_param:
+                                    # 第二个参数不是窗口参数，检查是否是字段或表达式
+                                    # 如果包含$符号或者包含操作符，说明是比较操作
+                                    a, b = args[0], args[1]
+                                    if is_max:
+                                        replacement = f"(({a} + {b} + Abs({a} - {b})) / 2)"
+                                    else:
+                                        replacement = f"(({a} + {b} - Abs({a} - {b})) / 2)"
+                                    # 移除已经添加的 'Max(' 或 'Min('
+                                    result = result[:-1]  # 移除最后添加的函数名和括号
+                                    result.append(replacement)
+                                    # 不添加闭括号，因为我们完全替换了函数
                                 else:
-                                    replacement = f"(({a} + {b} - Abs({a} - {b})) / 2)"
-                                # 移除已经添加的 'Max(' 或 'Min('
-                                result = result[:-1]  # 移除最后添加的函数名和括号
-                                result.append(replacement)
-                                # 不添加闭括号，因为我们完全替换了函数
+                                    # 第二个参数是窗口参数，这是滚动窗口操作
+                                    result.append(args[0])
+                                    result.append(', ')
+                                    # 如果窗口参数为0，替换为20
+                                    if second_arg == '0':
+                                        result.append('20')
+                                    else:
+                                        result.append(second_arg)
+                                    result.append(')')
                             else:
-                                # 一个参数，保持原样
+                                # 一个参数，这是滚动窗口操作，需要确保有窗口参数
+                                # 不需要在这里添加，让add_missing_windows处理
                                 result.append(args[0])
                                 result.append(')')
                     elif expr[i] == ',' and depth == 1:
@@ -430,7 +454,26 @@ def fix_missing_params(expr):
                             
                             # 如果没有窗口参数，添加默认值
                             if not comma_at_depth_0 and content.strip():
-                                result.append(', 20')
+                                # 对于Max和Min，特别需要窗口参数
+                                if found_op in ['Max', 'Min']:
+                                    result.append(', 20')
+                                else:
+                                    result.append(', 20')
+                            elif comma_at_depth_0:
+                                # 检查是否有窗口参数且不为0
+                                # 尝试提取窗口参数
+                                parts = content.split(',')
+                                if len(parts) >= 2:
+                                    window_param = parts[-1].strip()
+                                    # 检查是否为0或无效值
+                                    try:
+                                        if window_param.isdigit() and int(window_param) == 0:
+                                            # 窗口参数为0，需要修正
+                                            # 替换最后一个参数
+                                            result[-len(window_param):] = []
+                                            result.append('20')
+                                    except:
+                                        pass
                             
                             result.append(')')
                         else:
@@ -623,6 +666,30 @@ def fix_missing_params(expr):
         return expr
     
     expr = fix_missing_parentheses(expr)
+    
+    # 最后的窗口参数验证和修正
+    # 使用正则表达式查找所有可能的窗口参数为0的情况
+    def fix_zero_windows(expr):
+        """修正所有窗口参数为0的情况"""
+        # 匹配形如 Op(..., 0) 的模式
+        ops_with_window = ['Std', 'Mean', 'Sum', 'Min', 'Max', 'Med', 'Mad', 'Skew', 'Kurt', 'Rank', 'Corr']
+        
+        for op in ops_with_window:
+            # 匹配 Op(..., 0) 模式，但要确保逗号前的不是纯数字
+            # 使用更精确的正则表达式
+            pattern = f'{op}\\(([^,)]+(?<![0-9])),\\s*0\\)'
+            replacement = f'{op}(\\1, 20)'
+            expr = re.sub(pattern, replacement, expr)
+            
+            # 匹配 Op(..., ..., 0) 模式（针对Corr等三参数函数）
+            # 确保只替换最后一个参数
+            pattern = f'{op}\\(([^,)]+),\\s*([^,)]+),\\s*0\\)'
+            replacement = f'{op}(\\1, \\2, 20)'
+            expr = re.sub(pattern, replacement, expr)
+        
+        return expr
+    
+    expr = fix_zero_windows(expr)
     
     # 最后一次括号检查
     open_count = expr.count('(')
