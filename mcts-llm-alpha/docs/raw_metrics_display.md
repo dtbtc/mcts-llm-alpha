@@ -1,120 +1,195 @@
-# 原始评估指标值显示功能
+# Raw Evaluation Metrics Display
 
-## 概述
+## Overview
 
-MCTS-LLM Alpha系统现在支持同时显示归一化分数（0-10范围）和原始评估指标值，让用户能够更深入地了解Alpha因子的真实表现。
+The MCTS-LLM Alpha system now supports displaying both normalized scores (0-10 range) and raw evaluation metric values, allowing users to gain deeper insights into the actual performance of alpha factors.
 
-## 显示的原始指标
+## Raw Metrics Displayed
 
-系统现在会显示以下原始评估指标：
+The system displays the following raw evaluation metrics:
 
-1. **IC (Information Coefficient)**
-   - 因子值与未来收益的相关性
-   - 典型范围：-0.05 到 0.05
-   - 越高越好（正值表示正相关）
+### 1. **IC (Information Coefficient)**
+- Correlation between factor values and future returns
+- Typical range: -0.05 to 0.05
+- Higher is better (positive values indicate positive correlation)
+- Interpretation:
+  - IC > 0.03: Excellent predictive power
+  - IC ∈ [0.01, 0.03]: Good predictive power
+  - IC ∈ [0, 0.01]: Weak predictive power
+  - IC < 0: Negative correlation (may need signal reversal)
 
-2. **ICIR (Information Coefficient Information Ratio)**
-   - IC的稳定性指标，IC均值除以IC标准差
-   - 典型范围：-2 到 2
-   - 越高越好（表示信号稳定）
+### 2. **ICIR (Information Coefficient Information Ratio)**
+- Stability indicator of IC, calculated as mean(IC) / std(IC)
+- Typical range: -2 to 2
+- Higher is better (indicates stable signal)
+- Interpretation:
+  - ICIR > 1.5: Very stable signal
+  - ICIR ∈ [0.5, 1.5]: Moderately stable signal
+  - ICIR < 0.5: Unstable signal
 
-3. **Turnover（换手率）**
-   - 因子信号的稳定性（0-1之间）
-   - 越高越好（高值表示低换手）
+### 3. **Turnover**
+- Signal stability (between 0-1)
+- Higher is better (high value indicates low turnover)
+- Represents the fraction of positions that remain unchanged
+- Important for transaction cost considerations
 
-4. **Diversity（多样性）**
-   - 与现有因子的差异度（0-1之间）
-   - 越高越好（高值表示更独特）
+### 4. **Diversity**
+- Difference from existing factors (between 0-1)
+- Higher is better (high value indicates more uniqueness)
+- Based on maximum absolute correlation with repository factors
 
-5. **Overfitting（过拟合风险）**
-   - 样本内外表现的一致性（0-1之间）
-   - 越高越好（高值表示低过拟合）
+### 5. **Overfitting**
+- Consistency between in-sample and out-of-sample performance (between 0-1)
+- Higher is better (high value indicates low overfitting)
+- Currently returns default value of 0.5
 
-## 输出格式示例
+## Output Format Example
 
 ```
-📊 初始公式信息:
-公式: Rank((($close - Ref($close, 10)) / Ref($close, 10)) * Mean($volume, 10)), 5)
-归一化评分: Effectiveness=7.50, Stability=8.20, Turnover=9.00, Diversity=8.50, Overfitting=5.00
-整体分数: 7.64
-原始指标: IC=0.0234, ICIR=1.8567, Turnover=0.8234, Diversity=0.7890, Overfitting=0.5000
+📊 Initial Formula Information:
+Formula: Rank((($close - Ref($close, 10)) / Ref($close, 10)) * Mean($volume, 10)), 5)
+Normalized Scores: Effectiveness=7.50, Stability=8.20, Turnover=9.00, Diversity=8.50, Overfitting=5.00
+Overall Score: 7.64
+Raw Metrics: IC=0.0234, ICIR=1.8567, Turnover=0.8234, Diversity=0.7890, Overfitting=0.5000
 
-前5个入库Alpha因子:
+Top 5 Repository Alpha Factors:
 
 [1] Rank((($close - Mean($close, 20)) / Mean($close, 20)), 10) * ($volume / Mean($volume, 15))
-    归一化分数:
-      有效性: 7.50
-      稳定性: 8.20
-      换手率: 9.00
-      多样性: 8.50
-      过拟合: 5.00
-      整体分数: 7.64
-    原始指标值:
+    Normalized Scores:
+      Effectiveness: 7.50
+      Stability: 8.20
+      Turnover: 9.00
+      Diversity: 8.50
+      Overfitting: 5.00
+      Overall: 7.64
+    Raw Metric Values:
       IC: 0.0234
       ICIR: 1.8567
-      换手率: 0.8234
-      多样性: 0.7890
-      过拟合: 0.5000
+      Turnover: 0.8234
+      Diversity: 0.7890
+      Overfitting: 0.5000
 ```
 
-## 分数映射说明
+## Score Mapping Explanation
 
-系统使用以下映射将原始指标转换为0-10分：
+The system uses the following mappings to convert raw metrics to 0-10 scores:
 
-### IC → Effectiveness (有效性)
-- IC < -0.2: 0分
-- IC ∈ [-0.2, -0.05]: 0-2分
-- IC ∈ [-0.05, 0]: 2-5分
-- IC ∈ [0, 0.05]: 5-8分
-- IC ∈ [0.05, 0.2]: 8-10分
-- IC > 0.2: 10分
+### IC → Effectiveness Score
+```python
+# Piecewise linear mapping
+IC < -0.2: 0
+IC ∈ [-0.2, -0.05]: 0-2
+IC ∈ [-0.05, 0]: 2-5
+IC ∈ [0, 0.05]: 5-8
+IC ∈ [0.05, 0.2]: 8-10
+IC > 0.2: 10
+```
 
-### ICIR → Stability (稳定性)
-- 使用tanh函数平滑映射
-- ICIR ∈ [-5, 5]映射到[0, 10]
-- 0附近有较好的线性度
+### ICIR → Stability Score
+```python
+# Tanh function for smooth mapping
+score = 5 * (1 + np.tanh(icir / 2))
+# Maps ICIR ∈ [-5, 5] to scores ∈ [0, 10]
+```
 
 ### Turnover → Turnover Score
-- 使用平方根函数映射
-- 低换手率获得更高分数的区分度
+```python
+# Square root function for better discrimination
+score = 10 * np.sqrt(turnover)
+# Emphasizes differences in low turnover region
+```
 
 ### Diversity → Diversity Score
-- 线性映射[0, 1]到[0, 10]
+```python
+# Linear mapping
+score = 10 * diversity
+# Direct proportion from [0, 1] to [0, 10]
+```
 
 ### Overfitting → Overfitting Score
-- 使用0.7次方函数映射
-- 使高分更难获得
+```python
+# Power function mapping
+score = 10 * (overfitting ** 0.7)
+# Makes high scores harder to achieve
+```
 
-## 使用建议
+## Usage Recommendations
 
-1. **IC值解读**：
-   - IC > 0.03：优秀的预测能力
-   - IC ∈ [0.01, 0.03]：良好的预测能力
-   - IC ∈ [0, 0.01]：弱预测能力
-   - IC < 0：负相关，可能需要反转信号
+### 1. **Comprehensive Evaluation**
+- Don't rely solely on normalized scores
+- Raw values provide more nuanced information
+- Both IC and ICIR should be high for a good factor
 
-2. **ICIR值解读**：
-   - ICIR > 1.5：非常稳定的信号
-   - ICIR ∈ [0.5, 1.5]：较稳定的信号
-   - ICIR < 0.5：不稳定的信号
+### 2. **Trade-off Considerations**
+- High IC with low ICIR may indicate unstable signals
+- Low turnover (high turnover score) helps reduce transaction costs
+- Balance effectiveness with stability and turnover
 
-3. **综合判断**：
-   - 不要只看归一化分数，原始值提供更多细节
-   - IC和ICIR同时高才是好因子
-   - 低换手率（高Turnover分数）有助于降低交易成本
+### 3. **Repository Comparison**
+- Compare raw metrics with repository averages
+- Look for factors that improve on multiple dimensions
+- Consider the relative ranking within the repository
 
-## 配置选项
+## Configuration Options
 
-可以通过配置文件调整显示选项：
+Adjust display options in the configuration file:
 
 ```yaml
 display:
-  show_raw_scores: true  # 是否显示原始分数
-  decimal_places: 4      # 原始分数的小数位数
+  show_raw_scores: true  # Whether to show raw scores
+  decimal_places: 4      # Decimal places for raw scores
+  
+evaluation:
+  verbose: true          # Enable detailed output
+  show_intermediate: true # Show intermediate calculations
 ```
 
-## 注意事项
+## Technical Implementation
 
-1. 原始指标值仅在使用真实数据评估时可用
-2. 模拟评估模式不会产生原始指标值
-3. 缓存的评估结果也会包含原始指标值
+### Data Structure
+```python
+# Evaluation result includes both normalized and raw scores
+{
+    "scores": {
+        "Effectiveness": 7.5,
+        "Stability": 8.2,
+        "Turnover": 9.0,
+        "Diversity": 8.5,
+        "Overfitting": 5.0
+    },
+    "raw_scores": {
+        "IC": 0.0234,
+        "ICIR": 1.8567,
+        "Turnover": 0.8234,
+        "Diversity": 0.7890,
+        "Overfitting": 0.5000
+    }
+}
+```
+
+### Cache Compatibility
+- Cached results include raw metric values
+- Old cache entries without raw values are automatically updated
+- Cache key includes evaluation parameters
+
+## Notes and Limitations
+
+1. **Data Requirements**
+   - Raw metrics are only available with real data evaluation
+   - Simulation mode does not produce meaningful raw metrics
+
+2. **Metric Stability**
+   - IC and ICIR may vary with market conditions
+   - Use sufficient historical data for reliable estimates
+   - Consider different time periods for robustness
+
+3. **Future Enhancements**
+   - Additional metrics (Sharpe ratio, maximum drawdown)
+   - Time-series visualization of metrics
+   - Market regime-specific analysis
+
+## See Also
+
+- [Evaluation System Documentation](evaluation_system.md)
+- [Configuration Guide](configuration.md)
+- [Architecture Overview](architecture.md)

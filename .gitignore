@@ -62,3 +62,8 @@ outputs/
 # API keys (safety)
 *api_key*
 *API_KEY*
+
+# Claude-specific files
+CLAUDE.md
+claude.md
+.claude/
